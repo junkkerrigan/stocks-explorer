@@ -1,3 +1,4 @@
 export * from './stocksApiUrl';
-export * from './nockApi';
+export * from '../mocks/nockApi';
 export * from './getCompanyName';
+export * from './lruCache';

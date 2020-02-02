@@ -1,10 +1,10 @@
 import nock from 'nock';
-import { stocksApiUrl } from './index';
+import { stocksApiUrl } from '../utils';
 
-import { StocksApiResponse } from '../typing'
+import { StocksApiResponseOnSuccess } from '../typing'
 
 const nockData: {
-    [key: string]: StocksApiResponse
+    [key: string]: StocksApiResponseOnSuccess
 } = {
     'WIX': {
         'Global Quote': {

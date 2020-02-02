@@ -1,19 +1,12 @@
 import express from 'express'
 import axios from 'axios';
-import LruCache from 'lru-cache';
-import { stocksApiUrl, nockApi, getCompanyName } from './utils';
+import { stocksApiUrl, nockApi, getCompanyName, succeedRequestsCache, badRequestsCache } from './utils';
 
-import { isValidResponseCacheItem, isValidStocksApiResponse } from './typing';
+import {
+    isStocksApiResponseOnSuccess, CachedResponse, ResponseContentOnSuccess, ResponseContentOnFail
+} from './typing';
 
-const succeedRequestsCache = new LruCache({
-    maxAge: 1000*60*10
-});
-
-const badRequestsCache = new LruCache({
-    maxAge: 1000*60*60*24
-});
-
-nockApi();
+// nockApi();
 
 const app = express();
 app.use(express.json());
@@ -21,55 +14,96 @@ app.use(express.json());
 const apiRouter = express.Router();
 app.use('/api/v1/stocks', apiRouter);
 
+let isResponseFromCache: boolean;
+
+export const cachingTestingData = {
+    _isLastResponseFromCache: false,
+    get isLastResponseFromCache() {
+        return this._isLastResponseFromCache;
+    },
+    set isLastResponseFromCache(value) {
+        this._isLastResponseFromCache = value
+    }
+};
+
 apiRouter.get('/', async (req, res) => {
-    let cached = badRequestsCache.get(req.originalUrl);
-    if (isValidResponseCacheItem(cached)) {
-        res.status(cached.status).send(cached.response);
+    let cachedResponse = badRequestsCache.get(req.originalUrl);
+    if (typeof cachedResponse !== 'undefined') {
+        const { data, status } = cachedResponse;
+        cachingTestingData.isLastResponseFromCache = true;
+        res.status(status).send(data);
         return;
     }
-    cached = succeedRequestsCache.get(req.originalUrl);
-    if (isValidResponseCacheItem(cached)) {
-        res.status(cached.status).send(cached.response);
-        console.log('cached: succeed');
+
+    cachedResponse = succeedRequestsCache.get(req.originalUrl);
+    if (typeof cachedResponse !== 'undefined') {
+        const { data, status } = cachedResponse;
+        cachingTestingData.isLastResponseFromCache = true;
+        res.status(status).send(data);
         return;
     }
 
     let { stockSymbol }  = req.query;
+    let dataToCache: CachedResponse;
+    let data: ResponseContentOnFail | ResponseContentOnSuccess;
+
     if (!stockSymbol) {
-        let response = 'invalid request: non-empty `stockSymbol` param required';
-        res.status(400).send(response);
-        badRequestsCache.set(req.originalUrl, {
+        data = {
+            message: 'Invalid request: non-empty `stockSymbol` param required.',
+            stockSymbol: 'Was not provided.'
+        };
+        res.status(400).send(data);
+
+        dataToCache = {
             status: 400,
-            response
-        });
+            data
+        };
+        badRequestsCache.set(req.originalUrl, dataToCache);
+
         return;
     }
+
     if (typeof getCompanyName(stockSymbol) === 'undefined') {
-        let response = 'unknown stock symbol';
-        res.status(400).send(response);
-        badRequestsCache.set(req.originalUrl, {
+        data = {
+            message: 'Unknown stock symbol.',
+            stockSymbol
+        };
+        res.status(400).send(data);
+
+        dataToCache = {
             status: 400,
-            response
-        });
+            data
+        };
+        badRequestsCache.set(req.originalUrl, dataToCache);
+
         return;
     }
-    const { data } = await axios.get(stocksApiUrl(stockSymbol));
-    if (!isValidStocksApiResponse(data)) {
-        console.log(data);
-        res.status(503).send('request to external API failed');
+
+    const { data: stocksResponse } = await axios.get(stocksApiUrl(stockSymbol));
+    if (!isStocksApiResponseOnSuccess(stocksResponse)) {
+        console.log(stocksResponse);
+        res.status(503).send('Request to external API failed.');
         return;
     }
-    const quoteData = data['Global Quote'];
-    const price = (Array.from(Object.values(quoteData)))[4];
-    let response = {
+
+    const stocksDataObject = stocksResponse['Global Quote'];
+    const stocksDataList = Array.from(
+        Object.values(stocksDataObject)
+    );
+    const price = stocksDataList[4];
+
+    data = {
+        stockSymbol,
         companyName: getCompanyName(stockSymbol),
         price
     };
-    res.status(200).send(response);
-    succeedRequestsCache.set(req.originalUrl, {
+    res.status(200).send(data);
+
+    dataToCache = {
         status: 200,
-        response
-    });
+        data
+    };
+    succeedRequestsCache.set(req.originalUrl, dataToCache);
 });
 
 app.get('/', (req, res) => {

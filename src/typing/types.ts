@@ -1,15 +1,23 @@
-export type ValidResponse = {
+interface ResponseContent {
+    stockSymbol: string,
+}
+
+export interface ResponseContentOnSuccess extends ResponseContent {
     companyName: string,
     price: string
 }
 
-export type StocksApiResponse = {
+export interface ResponseContentOnFail extends ResponseContent {
+    message: string,
+}
+
+export type StocksApiResponseOnSuccess = {
     'Global Quote': {
         [key: string]: string
     }
 }
 
-export type ResponseCacheItem = {
+export type CachedResponse = {
     status: number,
-    response: any
+    data: ResponseContentOnSuccess | ResponseContentOnFail
 };
