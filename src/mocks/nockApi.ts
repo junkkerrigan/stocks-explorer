@@ -1,10 +1,10 @@
 import nock from 'nock';
 import { stocksApiUrl } from '../utils';
 
-import { StocksApiResponseOnSuccess } from '../typing'
+import { StocksApiResponse } from '../typing'
 
 const nockData: {
-    [key: string]: StocksApiResponseOnSuccess
+    [key: string]: StocksApiResponse
 } = {
     'WIX': {
         'Global Quote': {
@@ -27,7 +27,7 @@ const nockApi = () => {
     for (let symbol in nockData) {
         scope
             .persist()
-            .get(stocksApiUrl(symbol, false))
+            .get(stocksApiUrl.price(symbol, false))
             .reply(200, nockData[symbol]);
     }
 };

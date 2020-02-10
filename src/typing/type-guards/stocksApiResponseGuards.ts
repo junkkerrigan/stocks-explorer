@@ -1,24 +1,6 @@
 import {
-    ResponseDataToCache, ResponseOnSuccess, ResponseOnFail, StocksApiResponse,
-    SearchResponse
+    SearchResponse, KeyExpirationResponse, InvalidRequestResponse, PriceResponse
 } from '../types';
-
-// export const isResponseContentOnSuccess = (val: any): val is ResponseContentOnSuccess => {
-//     return (
-//         val
-//         && typeof val.stockSymbol === 'string' // if no property - undefined
-//         && typeof val.companyName === 'string'
-//         && typeof val.price === 'string'
-//     );
-// };
-//
-// export const isResponseContentOnFail = (val: any): val is ResponseContentOnFail => {
-//     return (
-//         val
-//         && typeof val.stockSymbol === 'string' // if no property - undefined
-//         && typeof val.message === 'string'
-//     );
-// };
 
 export const isSearchResponse = (val: any): val is SearchResponse => {
     return (
@@ -27,13 +9,23 @@ export const isSearchResponse = (val: any): val is SearchResponse => {
     );
 };
 
-export const isStocksApiResponse = (value: any): value is StocksApiResponse => {
+export const isKeyExpirationResponse = (val: any): val is KeyExpirationResponse => {
     return (
-        value
-        && (
-            'Global Quote' in value
-            || 'Note' in value
-            || 'Error Message' in value
-        )
+        val
+        && typeof val['Note'] === 'string'
+    );
+};
+
+export const isInvalidRequestResponse = (val: any): val is InvalidRequestResponse => {
+    return (
+        val
+        && typeof val['Error Message'] === 'string'
+    );
+};
+
+export const isPriceResponse = (val: any): val is PriceResponse => {
+    return (
+        val
+        && 'Global Quote' in val
     );
 };

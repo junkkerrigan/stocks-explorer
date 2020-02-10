@@ -1,10 +1,10 @@
 import LruCache from "lru-cache";
-import { CachedResponse } from "../typing";
+import { SymbolData } from "../typing";
 
-export const succeedRequestsCache = new LruCache<string, CachedResponse>({
+export const pricesCache = new LruCache<string, SymbolData>({
     maxAge: 1000*60*10
 });
 
-export const badRequestsCache = new LruCache<string, CachedResponse>({
+export const unknownSymbolsCache = new LruCache<string, SymbolData>({
     maxAge: 1000*60*60*24
 });

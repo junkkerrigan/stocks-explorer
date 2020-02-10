@@ -1,17 +1,16 @@
-type ResponseContent = Record<string, string>
-
 export type SearchResponse = {
-    'bestMatches': Array<ResponseContent>
+    'bestMatches': Array<{
+        [key: string]: string
+    }>
 }
-
 export type PriceResponse = {
-    'Global Quote': ResponseContent
+    'Global Quote': {
+        [key: string]: string
+    }
 }
-
 export type InvalidRequestResponse = {
     'Error Message': string
 }
-
 export type KeyExpirationResponse = {
     'Note': string
 }

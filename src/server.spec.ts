@@ -1,8 +1,14 @@
 import request from 'supertest';
-import app, { cachingTestingData } from './server';
-import { badRequestsCache, succeedRequestsCache } from './utils';
+import app, { isResponseFromCache } from './server';
+import { unknownSymbolsCache, pricesCache } from './utils';
 
-import { isResponseContentOnSuccess, isResponseContentOnFail } from './typing';
+import {
+    isExplorerSuccessResponse,
+    ExplorerSuccessResponse,
+    SymbolData,
+    isSuccessSymbolData,
+    isSymbolData
+} from './typing';
 
 describe('Stock Explorer API', () => {
     it('should receive response from root route', async () => {
@@ -13,7 +19,7 @@ describe('Stock Explorer API', () => {
         expect(res.status).toEqual(200);
     });
 
-    it('should fail when no stock symbol passed', async () => {
+    it('should fail when no stockSymbols passed', async () => {
         let res = await request(app)
             .get('/api/v1/stocks')
             .send();
@@ -21,83 +27,99 @@ describe('Stock Explorer API', () => {
         expect(res.status).toEqual(400);
     });
 
-    it('should fail when invalid stock symbol passed', async () => {
+    it('should return false isMatch when invalid stock symbol passed', async () => {
         let res = await request(app)
-            .get('/api/v1/stocks?stockSymbol=IOIOI')
+            .get('/api/v1/stocks?stockSymbols=IOIOI')
             .send();
 
-        expect(res.status).toEqual(400);
-        expect(isResponseContentOnFail(res.body)).toEqual(true);
+        expect(res.status).toEqual(200);
+        expect(isExplorerSuccessResponse(res.body)).toEqual(true);
+        expect(res.body.stocksData[0].isMatch).toEqual(false);
     });
 
     it('should return valid response when correct symbol is passed', async () => {
         let res = await request(app)
-            .get('/api/v1/stocks?stockSymbol=MSFT')
+            .get('/api/v1/stocks?stockSymbols=MSFT')
             .send();
 
         expect(res.status).toEqual(200);
-        expect(isResponseContentOnSuccess(res.body)).toEqual(true);
+        expect(isExplorerSuccessResponse(res.body)).toEqual(true);
+        expect(res.body.stocksData[0].isMatch).toEqual(true);
+        expect(typeof res.body.stocksData[0].data.price !== 'undefined').toEqual(true);
+    });
+
+    it('should return valid response when multiple valid symbols passed', async () => {
+        let res = await request(app)
+            .get('/api/v1/stocks?stockSymbols=MSFT,WIX,ALTR')
+            .send();
+
+        expect(res.status).toEqual(200);
+        expect(isExplorerSuccessResponse(res.body)).toEqual(true);
+        res.body.stocksData.map((item: SymbolData) => {
+            console.log(item);
+            expect(isSymbolData(item)).toEqual(true);
+            if (isSuccessSymbolData(item)) {
+                console.log('success');
+                expect(item.isMatch).toEqual(true);
+            }
+        })
     });
 
     describe('caching testing', () => {
         beforeEach(() => {
-            cachingTestingData.isLastResponseFromCache = false;
-            succeedRequestsCache.reset();
-            badRequestsCache.reset();
+            isResponseFromCache.clear();
+            pricesCache.reset(); unknownSymbolsCache.reset();
         });
 
         it('should return cached data for correct request', async () => {
             await request(app)
-                .get('/api/v1/stocks?stockSymbol=GOOGL')
+                .get('/api/v1/stocks?stockSymbols=GOOGL')
                 .send();
 
+            console.log(pricesCache.values());
             const isCached = (
-                typeof succeedRequestsCache.get('/api/v1/stocks?stockSymbol=GOOGL') !== 'undefined'
+                typeof pricesCache.get('GOOGL') !== 'undefined'
             );
             expect(isCached).toEqual(true);
 
             let res = await request(app)
-                .get('/api/v1/stocks?stockSymbol=GOOGL')
+                .get('/api/v1/stocks?stockSymbols=GOOGL')
                 .send();
 
-            expect(isResponseContentOnSuccess(res.body)).toEqual(true);
-            expect(cachingTestingData.isLastResponseFromCache).toEqual(true);
+            expect(isExplorerSuccessResponse(res.body)).toEqual(true);
+            expect(isResponseFromCache.getLast()[0]).toEqual(true);
         });
 
-        it('should return cached data for request without `stockSymbol` param', async () => {
+        it.skip('should return cached data for request without `stockSymbol` param', async () => {
             await request(app)
                 .get('/api/v1/stocks?someParam=someData')
                 .send();
 
-            const isCached = (
-                typeof badRequestsCache.get('/api/v1/stocks?someParam=someData') !== 'undefined'
-            );
-            expect(isCached).toEqual(true);
-
             let res = await request(app)
                 .get('/api/v1/stocks?someParam=someData')
                 .send();
 
-            expect(isResponseContentOnFail(res.body)).toEqual(true);
-            expect(cachingTestingData.isLastResponseFromCache).toEqual(true);
+            expect(isExplorerSuccessResponse(res.body)).toEqual(true);
+            expect(isResponseFromCache.getLast()[0]).toEqual(true);
         });
 
         it('should return cached data for request with incorrect `stockSymbol` param', async () => {
             await request(app)
-                .get('/api/v1/stocks?stockSymbol=PUTIN')
+                .get('/api/v1/stocks?stockSymbols=PUTIN')
                 .send();
 
+            console.log(unknownSymbolsCache.values());
             const isCached = (
-                typeof badRequestsCache.get('/api/v1/stocks?stockSymbol=PUTIN') !== 'undefined'
+                typeof unknownSymbolsCache.get('PUTIN') !== 'undefined'
             );
             expect(isCached).toEqual(true);
 
             let res = await request(app)
-                .get('/api/v1/stocks?stockSymbol=PUTIN')
+                .get('/api/v1/stocks?stockSymbols=PUTIN')
                 .send();
 
-            expect(isResponseContentOnFail(res.body)).toEqual(true);
-            expect(cachingTestingData.isLastResponseFromCache).toEqual(true);
+            expect(isExplorerSuccessResponse(res.body)).toEqual(true);
+            expect(isResponseFromCache.getLast()[0]).toEqual(true);
         });
     })
 });

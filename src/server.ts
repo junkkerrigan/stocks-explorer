@@ -1,9 +1,14 @@
 import express from 'express'
 import axios from 'axios';
-import { stocksApiUrl, nockApi, getCompanyName, succeedRequestsCache, badRequestsCache } from './utils';
+import { stocksApiUrl, nockApi, pricesCache, unknownSymbolsCache } from './utils';
 
 import {
-    isStocksApiResponseOnSuccess, CachedResponse, ResponseContentOnSuccess, ResponseContentOnFail
+    isSearchResponse,
+    ExplorerFailResponse,
+    SymbolData,
+    isKeyExpirationResponse,
+    isInvalidRequestResponse,
+    KeyExpirationResponse, isPriceResponse, ExplorerSuccessResponse,
 } from './typing';
 
 // nockApi();
@@ -14,96 +19,122 @@ app.use(express.json());
 const apiRouter = express.Router();
 app.use('/api/v1/stocks', apiRouter);
 
-let isResponseFromCache: boolean;
-
-export const cachingTestingData = {
-    _isLastResponseFromCache: false,
-    get isLastResponseFromCache() {
-        return this._isLastResponseFromCache;
+// for testing purposes
+export const isResponseFromCache = {
+    _isResponseFromCache: Array<boolean>(),
+    getLast: function(cnt: number = 1) {
+        const { length } = this._isResponseFromCache;
+        return this._isResponseFromCache.slice(length - cnt);
     },
-    set isLastResponseFromCache(value) {
-        this._isLastResponseFromCache = value
+    push: function (item: boolean) { this._isResponseFromCache.push(item); },
+    clear: function () { this._isResponseFromCache = Array<boolean>(); }
+};
+
+let stocksData: Array<SymbolData> = [];
+
+const processInvalidResponse = (searchResult: any, symbol: string) => {
+    if (isKeyExpirationResponse(searchResult)) {
+        stocksData.push({
+            symbol,
+            message: 'Access to external API denied.'
+        });
+    } else if (isInvalidRequestResponse((searchResult))) {
+        stocksData.push({
+            symbol,
+            message: 'Invalid request to external API.'
+        })
+    } else {
+        stocksData.push({
+            symbol,
+            message: 'Request to external API failed.'
+        })
     }
 };
 
-apiRouter.get('/', async (req, res) => {
-    let cachedResponse = badRequestsCache.get(req.originalUrl);
-    if (typeof cachedResponse !== 'undefined') {
-        const { data, status } = cachedResponse;
-        cachingTestingData.isLastResponseFromCache = true;
-        res.status(status).send(data);
+const processSymbol = async (symbol: string) => {
+    const { data: searchResult } = await axios.get(stocksApiUrl.search(symbol));
+    if (!isSearchResponse(searchResult)) {
+        processInvalidResponse(searchResult, symbol);
         return;
     }
 
-    cachedResponse = succeedRequestsCache.get(req.originalUrl);
-    if (typeof cachedResponse !== 'undefined') {
-        const { data, status } = cachedResponse;
-        cachingTestingData.isLastResponseFromCache = true;
-        res.status(status).send(data);
-        return;
-    }
+    let dataToCache: SymbolData;
 
-    let { stockSymbol }  = req.query;
-    let dataToCache: CachedResponse;
-    let data: ResponseContentOnFail | ResponseContentOnSuccess;
-
-    if (!stockSymbol) {
-        data = {
-            message: 'Invalid request: non-empty `stockSymbol` param required.',
-            stockSymbol: 'Was not provided.'
-        };
-        res.status(400).send(data);
-
+    if (searchResult.bestMatches.length === 0) {
         dataToCache = {
-            status: 400,
-            data
+            symbol,
+            isMatch: false
         };
-        badRequestsCache.set(req.originalUrl, dataToCache);
-
+        stocksData.push(dataToCache);
+        console.log(stocksData);
+        unknownSymbolsCache.set(symbol, dataToCache);
         return;
     }
 
-    if (typeof getCompanyName(stockSymbol) === 'undefined') {
-        data = {
-            message: 'Unknown stock symbol.',
-            stockSymbol
-        };
-        res.status(400).send(data);
+    const companyData = Array.from(Object.values(searchResult.bestMatches[0]));
+    const companyName = companyData[1];
+    const { data: quoteResponse } = await axios.get(stocksApiUrl.price(symbol));
+    console.log(quoteResponse);
 
-        dataToCache = {
-            status: 400,
-            data
-        };
-        badRequestsCache.set(req.originalUrl, dataToCache);
-
+    if (!isPriceResponse(quoteResponse)) {
+        processInvalidResponse(quoteResponse, symbol);
         return;
     }
 
-    const { data: stocksResponse } = await axios.get(stocksApiUrl(stockSymbol));
-    if (!isStocksApiResponseOnSuccess(stocksResponse)) {
-        console.log(stocksResponse);
-        res.status(503).send('Request to external API failed.');
-        return;
-    }
-
-    const stocksDataObject = stocksResponse['Global Quote'];
-    const stocksDataList = Array.from(
-        Object.values(stocksDataObject)
-    );
-    const price = stocksDataList[4];
-
-    data = {
-        stockSymbol,
-        companyName: getCompanyName(stockSymbol),
-        price
-    };
-    res.status(200).send(data);
+    const priceData = Array.from(Object.values(quoteResponse["Global Quote"]));
+    const price = priceData[4];
 
     dataToCache = {
-        status: 200,
-        data
+        symbol,
+        isMatch: true,
+        data: {
+            companyName,
+            price
+        }
     };
-    succeedRequestsCache.set(req.originalUrl, dataToCache);
+    stocksData.push(dataToCache);
+    pricesCache.set(symbol, dataToCache);
+};
+
+apiRouter.get('/', async (req, res) => {
+    stocksData = [];
+
+    let { stockSymbols } = req.query;
+    if (typeof stockSymbols === 'undefined') {
+        const explorerResponse: ExplorerFailResponse = {
+            message: '`stockSymbols` param required.'
+        };
+        res.status(400).send(explorerResponse);
+        return;
+    }
+
+    if (stockSymbols === '') {
+        stockSymbols = 'WIX'; // ;)
+    }
+    const stockSymbolsList = stockSymbols.split(',');
+    for (let symbol of stockSymbolsList) {
+        let cache = pricesCache.get(symbol);
+        if (typeof cache !== 'undefined') {
+            stocksData.push(cache);
+            isResponseFromCache.push(true);
+            continue;
+        } else {
+            cache = unknownSymbolsCache.get(symbol);
+            if (typeof cache !== 'undefined') {
+                isResponseFromCache.push(true);
+                stocksData.push(cache);
+                continue;
+            }
+        }
+        isResponseFromCache.push(false);
+        await processSymbol(symbol);
+    }
+
+    const explorerResponse: ExplorerSuccessResponse = {
+        stockSymbols,
+        stocksData
+    };
+    res.status(200).send(explorerResponse);
 });
 
 app.get('/', (req, res) => {
