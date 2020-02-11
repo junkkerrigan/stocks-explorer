@@ -16,6 +16,9 @@ export const isSuccessSymbolData = (val: any): val is SuccessSymbolData => {
             'data' in val
             && typeof val.data.companyName === 'string'
             && typeof val.data.price === 'string'
+            && 'change' in val.data
+            && typeof val.data.change.value === 'string'
+            && typeof val.data.change.percent === 'string'
         )
     }
     return true;

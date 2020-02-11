@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Stokr</title>
     <link rel="stylesheet" type="text/css" href="http://static.parastorage.com/services/third-party/fonts/Helvetica/fontFace.css"/>
-    <link rel="stylesheet" type="text/css" href="./assets/css/style.css">
+    <link rel="stylesheet" type="text/css" href="assets/css/style.css">
 </head>
 <body>
     <header class="main-header">
@@ -85,45 +85,124 @@
         <button class="apply-filters">Apply</button>
     </section>
     <ul class="stocks-data-list">
-        <li class="stocks-data-item">
-            <a href="" class="company-name">
-                AAPL (Apple.com Company)
-            </a>
-            <span class="stocks-price">1234.00</span>
-            <button class="stocks-change">-1.23%</button>
-        </li>
-        <li class="stocks-data-item">
-            <a href="" class="company-name">
-                GOOG (Google.com Inc)
-            </a>
-            <span class="stocks-price">324.03</span>
-            <button class="stocks-change">-4.74%</button>
-        </li>
-        <li class="stocks-data-item">
-            <a href="" class="company-name">
-                WIX (Wix.com Ltd)
-            </a>
-            <span class="stocks-price">13.93</span>
-            <button class="stocks-change wix">+1.94%</button>
-        </li>
-        <li class="stocks-data-item">
-            <a href="" class="company-name">
-                MSFT (Microsoft.com Coporation)
-            </a>
-            <span class="stocks-price">3421.03</span>
-            <button class="stocks-change">-4.04%</button>
-        </li>
-        <li class="stocks-data-item">
-            <a href="" class="company-name">SQBK (Soniq.com)</a>
-            <span class="stocks-price">765.22</span>
-            <button class="stocks-change">-4.78%</button>
-        </li>
-        <li class="stocks-data-item">
-            <a href="" class="company-name">ALTR (Altair Engineering Inc.)</a>
-            <span class="stocks-price">321.02</span>
-            <button class="stocks-change">-0.78%</button>
-        </li>
+<!--        <li class="stocks-data-item">-->
+<!--            <a href="" class="company-name">-->
+<!--                AAPL (Apple.com Company)-->
+<!--            </a>-->
+<!--            <span class="stocks-price">1234.00</span>-->
+<!--            <button class="stocks-change">-1.23%</button>-->
+<!--        </li>-->
+<!--        <li class="stocks-data-item">-->
+<!--            <a href="" class="company-name">-->
+<!--                GOOG (Google.com Inc)-->
+<!--            </a>-->
+<!--            <span class="stocks-price">324.03</span>-->
+<!--            <button class="stocks-change">-4.74%</button>-->
+<!--        </li>-->
+<!--        <li class="stocks-data-item">-->
+<!--            <a href="" class="company-name">-->
+<!--                WIX (Wix.com Ltd)-->
+<!--            </a>-->
+<!--            <span class="stocks-price">13.93</span>-->
+<!--            <button class="stocks-change wix">+1.94%</button>-->
+<!--        </li>-->
+<!--        <li class="stocks-data-item">-->
+<!--            <a href="" class="company-name">-->
+<!--                MSFT (Microsoft.com Coporation)-->
+<!--            </a>-->
+<!--            <span class="stocks-price">3421.03</span>-->
+<!--            <button class="stocks-change">-4.04%</button>-->
+<!--        </li>-->
+<!--        <li class="stocks-data-item">-->
+<!--            <a href="" class="company-name">SQBK (Soniq.com)</a>-->
+<!--            <span class="stocks-price">765.22</span>-->
+<!--            <button class="stocks-change">-4.78%</button>-->
+<!--        </li>-->
+<!--        <li class="stocks-data-item">-->
+<!--            <a href="" class="company-name">ALTR (Altair Engineering Inc.)</a>-->
+<!--            <span class="stocks-price">321.02</span>-->
+<!--            <button class="stocks-change">-0.78%</button>-->
+<!--        </li>-->
     </ul>
+
+    <script type="application/javascript">
+        const stocksData = {
+            'WIx': {
+                companyName: 'Wix.com Ltd.',
+                change: {
+                    value: '0',
+                    percent: '0%'
+                },
+                price: '12457'
+            }
+        };
+        const stocksList = document.querySelector('.stocks-data-list');
+
+        const createStockItem = (symbol, { companyName, change: { percent }, price }) => {
+            const changePercentVal = Number(percent.substr(0, percent.length - 1));
+            const roundedPercent = `${Math.round((changePercentVal + Number.EPSILON) * 100) / 100}%`;
+            return `<li class="stocks-data-item">
+                <a href="" class="company-name">
+                    ${symbol} (${companyName})
+                </a>
+                <span class="stocks-price">${price}</span>
+                <button class="stocks-change ${
+                    (changePercentVal === 0)
+                    ? 'neutral'
+                    : (changePercentVal < 0)
+                        ? 'negative'
+                        : 'positive'
+                }" data-mode="percent" data-symbol="${symbol}">${roundedPercent}</button>
+            </li>`;
+        };
+
+        let stocks = "";
+        for (let item in stocksData) {
+            stocks += createStockItem(item, stocksData[item]);
+        }
+        stocksList.innerHTML = stocks;
+
+        const toggleMode = (event) => {
+            const { mode, symbol } = event.target.dataset;
+            if (event.target.tagName !== 'BUTTON' || !mode || !symbol) return;
+            if (!stocksData[symbol]) return;
+            const { change: { value, percent } } = stocksData[symbol];
+
+            if (mode === 'percent') {
+                event.target.dataset.mode = 'value';
+                event.target.innerText =
+                    Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+            } else {
+                event.target.dataset.mode = 'percent';
+                const changePercentVal = Number(percent.substr(0, percent.length - 1));
+                event.target.innerText =
+                    `${Math.round((changePercentVal + Number.EPSILON) * 100) / 100}%`;
+            }
+
+            const symbols = [ 'WIX', 'ALTR', 'MSFT', 'AAPL', 'GOOGL', 'EBAY' ];
+
+            const randSym = symbols[Math.floor(Math.random() * symbols.length)];
+            fetch(`http://localhost:3000/api/v1/stocks?stockSymbols=${randSym}`)
+                .then(res => res.json())
+                .then(res => {
+                    const { stocksData: resStocksData } = res;
+                    const { symbol, isMatch, data } = resStocksData[0];
+                    console.log(resStocksData);
+                    if (isMatch && symbol && data) {
+                        if (!stocksData[symbol]) {
+                            stocksData[symbol] = data;
+                            stocksList.innerHTML += createStockItem(symbol, stocksData[symbol]);
+                        }
+                        if (stocksData['WIx']) {
+                            stocksData['WIx'] = undefined;
+                            stocksList.children[0].remove();
+                        }
+                    }
+                })
+        };
+
+        stocksList.addEventListener('click', toggleMode);
+    </script>
 
 <!--    <div class="main-wrapper">-->
 <!--        <div class="header">-->

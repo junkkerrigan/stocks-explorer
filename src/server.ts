@@ -1,5 +1,6 @@
 import express from 'express'
 import axios from 'axios';
+// import cors from 'cors';
 import { stocksApiUrl, nockApi, pricesCache, unknownSymbolsCache } from './utils';
 
 import {
@@ -7,14 +8,15 @@ import {
     ExplorerFailResponse,
     SymbolData,
     isKeyExpirationResponse,
-    isInvalidRequestResponse,
-    KeyExpirationResponse, isPriceResponse, ExplorerSuccessResponse,
+    isInvalidRequestResponse, isPriceResponse, ExplorerSuccessResponse,
 } from './typing';
 
 // nockApi();
 
 const app = express();
+app.use(express.static('./dist'));
 app.use(express.json());
+// app.use(cors());
 
 const apiRouter = express.Router();
 app.use('/api/v1/stocks', apiRouter);
@@ -36,12 +38,12 @@ const processInvalidResponse = (searchResult: any, symbol: string) => {
     if (isKeyExpirationResponse(searchResult)) {
         stocksData.push({
             symbol,
-            message: 'Access to external API denied.'
+            message: 'Access to external API temporarily denied because of access key expiration.'
         });
     } else if (isInvalidRequestResponse((searchResult))) {
         stocksData.push({
             symbol,
-            message: 'Invalid request to external API.'
+            message: `Invalid request to external API: ${searchResult['Error Message']}`
         })
     } else {
         stocksData.push({
@@ -66,7 +68,7 @@ const processSymbol = async (symbol: string) => {
             isMatch: false
         };
         stocksData.push(dataToCache);
-        console.log(stocksData);
+        // console.log(stocksData);
         unknownSymbolsCache.set(symbol, dataToCache);
         return;
     }
@@ -74,7 +76,7 @@ const processSymbol = async (symbol: string) => {
     const companyData = Array.from(Object.values(searchResult.bestMatches[0]));
     const companyName = companyData[1];
     const { data: quoteResponse } = await axios.get(stocksApiUrl.price(symbol));
-    console.log(quoteResponse);
+    // console.log(quoteResponse);
 
     if (!isPriceResponse(quoteResponse)) {
         processInvalidResponse(quoteResponse, symbol);
@@ -83,13 +85,18 @@ const processSymbol = async (symbol: string) => {
 
     const priceData = Array.from(Object.values(quoteResponse["Global Quote"]));
     const price = priceData[4];
+    const change = {
+        value: priceData[8],
+        percent: priceData[9],
+    };
 
     dataToCache = {
         symbol,
         isMatch: true,
         data: {
             companyName,
-            price
+            price,
+            change
         }
     };
     stocksData.push(dataToCache);
@@ -111,9 +118,15 @@ apiRouter.get('/', async (req, res) => {
     if (stockSymbols === '') {
         stockSymbols = 'WIX'; // ;)
     }
-    const stockSymbolsList = stockSymbols.split(',');
+    const repeatedStockSymbolsList =
+        stockSymbols
+            .split(',')
+            .filter((symbol: string) => symbol !== '')
+            .map((symbol: string) => symbol.trim());
+    const stockSymbolsList = Array.from(new Set<string>(repeatedStockSymbolsList));
     for (let symbol of stockSymbolsList) {
         let cache = pricesCache.get(symbol);
+        console.log('is from cache');
         if (typeof cache !== 'undefined') {
             stocksData.push(cache);
             isResponseFromCache.push(true);
@@ -126,19 +139,21 @@ apiRouter.get('/', async (req, res) => {
                 continue;
             }
         }
+        console.log('not from cache');
         isResponseFromCache.push(false);
         await processSymbol(symbol);
     }
 
     const explorerResponse: ExplorerSuccessResponse = {
-        stockSymbols,
+        stockSymbolsList,
         stocksData
     };
+    // res.he
     res.status(200).send(explorerResponse);
 });
 
 app.get('/', (req, res) => {
-    res.status(200).send('root`s in place');
+    res.status(200).sendFile('./dist/index.html');
 });
 
 export default app;

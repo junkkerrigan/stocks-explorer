@@ -8,7 +8,11 @@ export interface MatchSymbolData extends BaseSuccessSymbolData {
     isMatch: true,
     data: {
         companyName: string,
-        price: string
+        price: string,
+        change: {
+            value: string,
+            percent: string
+        }
     }
 }
 export interface NoMatchSymbolData extends BaseSuccessSymbolData {
@@ -21,7 +25,7 @@ export interface FailSymbolData extends BaseSymbolData {
 export type SuccessSymbolData = MatchSymbolData | NoMatchSymbolData
 export type SymbolData = SuccessSymbolData | FailSymbolData
 export type ExplorerSuccessResponse = {
-    stockSymbols: string,
+    stockSymbolsList: Array<string>,
     stocksData: Array<SymbolData>
 }
 export type ExplorerFailResponse = {
