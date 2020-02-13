@@ -1,6 +1,5 @@
 import express from 'express'
 import axios from 'axios';
-// import cors from 'cors';
 import { stocksApiUrl, nockApi, pricesCache, unknownSymbolsCache } from './utils';
 
 import {
@@ -16,7 +15,6 @@ import {
 const app = express();
 app.use(express.static('./dist'));
 app.use(express.json());
-// app.use(cors());
 
 const apiRouter = express.Router();
 app.use('/api/v1/stocks', apiRouter);
@@ -148,7 +146,6 @@ apiRouter.get('/', async (req, res) => {
         stockSymbolsList,
         stocksData
     };
-    // res.he
     res.status(200).send(explorerResponse);
 });
 

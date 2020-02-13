@@ -1,6 +1,6 @@
 import app from './server';
 
-const port = process.env.API_PORT || 3000;
+const port = process.env.API_PORT || 8080;
 
 app.listen(port, () => {
     console.log(`API is available on http://localhost:${port}/`);
