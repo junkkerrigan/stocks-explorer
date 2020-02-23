@@ -1,19 +1,31 @@
 import express from 'express'
 import axios from 'axios';
+import cors from 'cors';
 import { stocksApiUrl, nockApi, pricesCache, unknownSymbolsCache } from './utils';
 
 import {
     isSearchResponse,
     ExplorerFailResponse,
-    SymbolData,
+    StockData,
     isKeyExpirationResponse,
-    isInvalidRequestResponse, isPriceResponse, ExplorerSuccessResponse,
+    isInvalidRequestResponse,
+    isQuoteResponse,
+    ExplorerSuccessResponse,
+    isQuoteRequestBody,
+    StocksResponse,
+    QuoteFailResponse,
+    isSearchRequestBody,
+    SearchSuccessResponse,
+    SearchResult,
+    SearchFailResponse,
+    QuoteSuccessResponse,
 } from './typing';
 
 // nockApi();
 
 const app = express();
-app.use(express.static('./dist'));
+app.use(cors());
+// app.use(express.static('./dist'));
 app.use(express.json());
 
 const apiRouter = express.Router();
@@ -26,131 +38,180 @@ export const isResponseFromCache = {
         const { length } = this._isResponseFromCache;
         return this._isResponseFromCache.slice(length - cnt);
     },
-    push: function (item: boolean) { this._isResponseFromCache.push(item); },
-    clear: function () { this._isResponseFromCache = Array<boolean>(); }
+    push: function(item: boolean) { this._isResponseFromCache.push(item); },
+    clear: function() { this._isResponseFromCache = Array<boolean>(); }
 };
 
-let stocksData: Array<SymbolData> = [];
+const companyNames: Record<string, string> = { };
 
-const processInvalidResponse = (searchResult: any, symbol: string) => {
-    if (isKeyExpirationResponse(searchResult)) {
-        stocksData.push({
-            symbol,
-            message: 'Access to external API temporarily denied because of access key expiration.'
-        });
-    } else if (isInvalidRequestResponse((searchResult))) {
-        stocksData.push({
-            symbol,
-            message: `Invalid request to external API: ${searchResult['Error Message']}`
-        })
-    } else {
-        stocksData.push({
-            symbol,
-            message: 'Request to external API failed.'
-        })
-    }
-};
+apiRouter.post('/search', async (req, res) => {
+   if (!isSearchRequestBody(req.body) || req.body.query === '') {
+       const explorerResponse: QuoteFailResponse = {
+           message: 'Invalid payload: `query` field that is non-empty string required.'
+       };
+       res.status(400).send(explorerResponse);
+       return;
+   }
 
-const processSymbol = async (symbol: string) => {
-    const { data: searchResult } = await axios.get(stocksApiUrl.search(symbol));
-    if (!isSearchResponse(searchResult)) {
-        processInvalidResponse(searchResult, symbol);
-        return;
-    }
+   const { query } = req.body;
+   const { data } = await axios.get(stocksApiUrl.search(query));
+   if (isSearchResponse(data)) {
+       const { bestMatches } = data;
+       const matches: Array<SearchResult> = bestMatches.map(matchItem => {
+           const values = Array.from(Object.values(matchItem));
+           const symbol = values[0];
+           const name = values[1];
+           companyNames[symbol] = name;
 
-    let dataToCache: SymbolData;
+           return {
+               symbol,
+               name
+           };
+       });
+       const explorerResponse: SearchSuccessResponse = {
+           matches
+       };
+       res.status(200).send(explorerResponse);
+       return;
+   } else {
+       const explorerResponse: SearchFailResponse = {
+           message: 'Request to external API failed'
+       };
+       res.status(503).send(explorerResponse);
+   }
+});
 
-    if (searchResult.bestMatches.length === 0) {
-        dataToCache = {
-            symbol,
-            isMatch: false
-        };
-        stocksData.push(dataToCache);
-        // console.log(stocksData);
-        unknownSymbolsCache.set(symbol, dataToCache);
-        return;
-    }
-
-    const companyData = Array.from(Object.values(searchResult.bestMatches[0]));
-    const companyName = companyData[1];
-    const { data: quoteResponse } = await axios.get(stocksApiUrl.price(symbol));
-    // console.log(quoteResponse);
-
-    if (!isPriceResponse(quoteResponse)) {
-        processInvalidResponse(quoteResponse, symbol);
-        return;
-    }
-
-    const priceData = Array.from(Object.values(quoteResponse["Global Quote"]));
-    const price = priceData[4];
-    const change = {
-        value: priceData[8],
-        percent: priceData[9],
-    };
-
-    dataToCache = {
-        symbol,
-        isMatch: true,
-        data: {
-            companyName,
-            price,
-            change
-        }
-    };
-    stocksData.push(dataToCache);
-    pricesCache.set(symbol, dataToCache);
-};
-
-apiRouter.get('/', async (req, res) => {
-    stocksData = [];
-
-    let { stockSymbols } = req.query;
-    if (typeof stockSymbols === 'undefined') {
-        const explorerResponse: ExplorerFailResponse = {
-            message: '`stockSymbols` param required.'
+apiRouter.post('/quote', async (req, res) => {
+    if (!isQuoteRequestBody(req.body)) {
+        const explorerResponse: QuoteFailResponse = {
+            message: 'Invalid payload: `stockSymbols` field that is array of strings required.'
         };
         res.status(400).send(explorerResponse);
         return;
     }
 
-    if (stockSymbols === '') {
-        stockSymbols = 'WIX'; // ;)
-    }
-    const repeatedStockSymbolsList =
-        stockSymbols
-            .split(',')
-            .filter((symbol: string) => symbol !== '')
-            .map((symbol: string) => symbol.trim());
-    const stockSymbolsList = Array.from(new Set<string>(repeatedStockSymbolsList));
-    for (let symbol of stockSymbolsList) {
-        let cache = pricesCache.get(symbol);
-        console.log('is from cache');
-        if (typeof cache !== 'undefined') {
-            stocksData.push(cache);
-            isResponseFromCache.push(true);
-            continue;
-        } else {
-            cache = unknownSymbolsCache.get(symbol);
-            if (typeof cache !== 'undefined') {
-                isResponseFromCache.push(true);
-                stocksData.push(cache);
-                continue;
-            }
-        }
-        console.log('not from cache');
-        isResponseFromCache.push(false);
-        await processSymbol(symbol);
+    const { stockSymbols } = req.body;
+    let stocksData: Array<StocksResponse> = new Array<StocksResponse>(stockSymbols.length);
+    const stockSymbolsToRequestIndexMap: Array<number> = [];
+    const requests: Array<ReturnType<typeof axios.get>> = [];
+
+    stockSymbols.forEach((stockSymbol, idx) => {
+       let cached = pricesCache.get(stockSymbol);
+       if (typeof cached !== 'undefined')  {
+           stocksData[idx] = cached;
+           return;
+       }
+
+       cached = unknownSymbolsCache.get(stockSymbol);
+       if (typeof cached !== 'undefined') {
+           stocksData[idx] = cached;
+           return;
+       }
+
+       stockSymbolsToRequestIndexMap.push(idx);
+       requests.push(axios.get(stocksApiUrl.quote(stockSymbol)));
+    });
+
+    console.log(stockSymbolsToRequestIndexMap);
+
+    let apiResponseArr: Array<any> = [];
+    try {
+        apiResponseArr = await Promise.all(requests);
+    } catch {
+        const explorerResponse: QuoteFailResponse = {
+            message: 'Requests to external API failed'
+        };
+
+        res.status(503).send(explorerResponse);
+        return;
     }
 
-    const explorerResponse: ExplorerSuccessResponse = {
-        stockSymbolsList,
-        stocksData
-    };
+    apiResponseArr.forEach((apiResponse, idx) => {
+        const { data } = apiResponse;
+        if (isQuoteResponse(data)) {
+            const responseValues = Array.from(Object.values(data['Global Quote']));
+
+            let isValidResponse: boolean = true;
+            const symbol = responseValues[0];
+
+            if (!(symbol in companyNames)) {
+                const originalIdx = stockSymbolsToRequestIndexMap[idx];
+                stocksData[originalIdx] = {
+                    success: false,
+                    message: 'Unknown stock symbol.'
+                };
+                return;
+            }
+
+            const name = companyNames[symbol];
+            const price = Number(responseValues[4]);
+            if (Number.isNaN(price)) {
+                isValidResponse = false;
+            }
+            const value = Number(responseValues[8]);
+            if (Number.isNaN(value)) {
+                isValidResponse = false;
+            }
+            const percent = Number(responseValues[9].substr(0, responseValues[9].length - 1));
+            if (Number.isNaN(percent)) {
+                isValidResponse = false;
+            }
+
+            let stocksDataItem: StocksResponse;
+
+            if (isValidResponse) {
+                stocksDataItem  = {
+                    success: true,
+                    stocksData: {
+                        company: {
+                            symbol,
+                            name
+                        },
+                        price,
+                        change: {
+                            percent,
+                            value
+                        }
+                    }
+                };
+            } else {
+                stocksDataItem = {
+                    success: false,
+                    message: 'Request to external API failed.'
+                };
+            }
+
+            const originalIdx = stockSymbolsToRequestIndexMap[idx];
+            stocksData[originalIdx] = stocksDataItem;
+        } else if (isInvalidRequestResponse(data)) {
+            const originalIdx = stockSymbolsToRequestIndexMap[idx];
+            stocksData[originalIdx] = {
+                success: false,
+                message: 'Unknown stock symbol.'
+            };
+        } else {
+            const originalIdx = stockSymbolsToRequestIndexMap[idx];
+            stocksData[originalIdx] = {
+                success: false,
+                message: 'Request to external API failed.'
+            };
+        }
+    });
+
+    stockSymbolsToRequestIndexMap.forEach(originalIdx => {
+        if (stocksData[originalIdx].success) {
+            pricesCache.set(stockSymbols[originalIdx], stocksData[originalIdx]);
+        } else {
+            unknownSymbolsCache.set(stockSymbols[originalIdx], stocksData[originalIdx]);
+        }
+    });
+
+    const explorerResponse: QuoteSuccessResponse = stocksData;
     res.status(200).send(explorerResponse);
 });
 
 app.get('/', (req, res) => {
-    res.status(200).sendFile('./dist/index.html');
+    res.status(200).send('root is available');
 });
 
 export default app;

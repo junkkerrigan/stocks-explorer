@@ -5,9 +5,9 @@ import { unknownSymbolsCache, pricesCache } from './utils';
 import {
     isExplorerSuccessResponse,
     ExplorerSuccessResponse,
-    SymbolData,
-    isSuccessSymbolData,
-    isSymbolData
+    StockData,
+    isSuccessStockData,
+    isStockData
 } from './typing';
 
 describe('Stock Explorer API', () => {
@@ -55,10 +55,10 @@ describe('Stock Explorer API', () => {
 
         expect(res.status).toEqual(200);
         expect(isExplorerSuccessResponse(res.body)).toEqual(true);
-        res.body.stocksData.map((item: SymbolData) => {
+        res.body.stocksData.map((item: StockData) => {
             console.log(item);
-            expect(isSymbolData(item)).toEqual(true);
-            if (isSuccessSymbolData(item)) {
+            expect(isStockData(item)).toEqual(true);
+            if (isSuccessStockData(item)) {
                 console.log('success');
                 expect(item.isMatch).toEqual(true);
             }

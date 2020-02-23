@@ -1,13 +1,13 @@
-import {FailSymbolData, SymbolData, ExplorerSuccessResponse, SuccessSymbolData } from '../types';
+import { FailStockData, StockData, ExplorerSuccessResponse, SuccessStockData } from '../types';
 
-export const isFailSymbolData = (val: any): val is FailSymbolData => {
+export const isFailStockData = (val: any): val is FailStockData => {
     return (
         val
         && typeof val.message === 'string'
     );
 };
 
-export const isSuccessSymbolData = (val: any): val is SuccessSymbolData => {
+export const isSuccessStockData = (val: any): val is SuccessStockData => {
     if (!val) return false;
     if (!('symbol' in val)) return false;
     if (!('isMatch' in val)) return false;
@@ -19,29 +19,33 @@ export const isSuccessSymbolData = (val: any): val is SuccessSymbolData => {
             && 'change' in val.data
             && typeof val.data.change.value === 'string'
             && typeof val.data.change.percent === 'string'
-        )
+        );
     }
     return true;
 };
 
-export const isSymbolData = (val: any): val is SymbolData => {
+export const isStockData = (val: any): val is StockData => {
     return (
-        isFailSymbolData(val)
-        || isSuccessSymbolData(val)
+        isFailStockData(val)
+        || isSuccessStockData(val)
     );
 };
 
 export const isExplorerSuccessResponse = (val: any): val is ExplorerSuccessResponse => {
-    if (!(
-        val
-        && typeof val.stockSymbols === 'string'
-        && Array.isArray(val.stocksData)
-
-    )) {
+    if (
+        !(
+            val
+            && Array.isArray(val.stockSymbolsList)
+            && Array.isArray(val.stocksData)
+        )
+    ) {
         return false;
     }
     val.stocksData.forEach((stockData: any) => {
-        if (!isSymbolData(stockData)) return false;
+        if (!isStockData(stockData)) return false;
+    });
+    val.stockSymbolsList.forEach((symbol: any) => {
+        return (typeof symbol === 'string');
     });
     return true;
 };

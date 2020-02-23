@@ -27,7 +27,7 @@ const nockApi = () => {
     for (let symbol in nockData) {
         scope
             .persist()
-            .get(stocksApiUrl.price(symbol, false))
+            .get(stocksApiUrl.quote(symbol, false))
             .reply(200, nockData[symbol]);
     }
 };

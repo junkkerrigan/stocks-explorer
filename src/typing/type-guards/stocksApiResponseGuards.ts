@@ -1,5 +1,5 @@
 import {
-    SearchResponse, KeyExpirationResponse, InvalidRequestResponse, PriceResponse
+    SearchResponse, KeyExpirationResponse, InvalidRequestResponse, QuoteResponse
 } from '../types';
 
 export const isSearchResponse = (val: any): val is SearchResponse => {
@@ -23,7 +23,7 @@ export const isInvalidRequestResponse = (val: any): val is InvalidRequestRespons
     );
 };
 
-export const isPriceResponse = (val: any): val is PriceResponse => {
+export const isQuoteResponse = (val: any): val is QuoteResponse => {
     return (
         val
         && 'Global Quote' in val

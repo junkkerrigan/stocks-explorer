@@ -1,35 +1,74 @@
-interface BaseSymbolData {
+interface BaseStockData {
     symbol: string,
 }
-export interface BaseSuccessSymbolData extends BaseSymbolData {
-    isMatch: boolean
+export interface BaseSuccessStockData extends BaseStockData {
+    isMatch: boolean,
 }
-export interface MatchSymbolData extends BaseSuccessSymbolData {
+export interface MatchStockData extends BaseSuccessStockData {
     isMatch: true,
     data: {
         companyName: string,
         price: string,
         change: {
             value: string,
-            percent: string
-        }
-    }
+            percent: string,
+        },
+    },
 }
-export interface NoMatchSymbolData extends BaseSuccessSymbolData {
-    isMatch: false
+export interface NoMatchStockData extends BaseSuccessStockData {
+    isMatch: false,
 }
-export interface FailSymbolData extends BaseSymbolData {
-    message: string
+export interface FailStockData extends BaseStockData {
+    message: string,
 }
 
-export type SuccessSymbolData = MatchSymbolData | NoMatchSymbolData
-export type SymbolData = SuccessSymbolData | FailSymbolData
+export type SuccessStockData = MatchStockData | NoMatchStockData;
+export type StockData = SuccessStockData | FailStockData;
 export type ExplorerSuccessResponse = {
     stockSymbolsList: Array<string>,
-    stocksData: Array<SymbolData>
-}
+    stocksData: Array<StockData>,
+};
 export type ExplorerFailResponse = {
+    message: string,
+};
+
+export type QuoteFailResponse = {
+    message: string
+};
+
+export type QuoteSuccessResponse = Array<StocksResponse>;
+
+export type StocksResponse = StocksSuccessResponse | StocksFailResponse;
+
+export type StocksSuccessResponse = {
+    success: true,
+    stocksData: {
+        company: {
+            name: string,
+            symbol: string
+        },
+        price: number,
+        change: {
+            value: number,
+            percent: number
+        }
+    }
+};
+
+export type StocksFailResponse = {
+    success: false,
+    message: string
+};
+
+export type SearchFailResponse = {
     message: string
 }
 
+export type SearchSuccessResponse = {
+    matches: Array<SearchResult>
+};
 
+export type SearchResult = {
+    symbol: string,
+    name: string
+}

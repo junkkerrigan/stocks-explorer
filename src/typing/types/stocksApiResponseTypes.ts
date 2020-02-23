@@ -3,7 +3,7 @@ export type SearchResponse = {
         [key: string]: string
     }>
 }
-export type PriceResponse = {
+export type QuoteResponse = {
     'Global Quote': {
         [key: string]: string
     }
@@ -17,6 +17,6 @@ export type KeyExpirationResponse = {
 
 export type StocksApiResponse =
     | SearchResponse
-    | PriceResponse
+    | QuoteResponse
     | InvalidRequestResponse
     | KeyExpirationResponse
