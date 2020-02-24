@@ -4,7 +4,6 @@ import { unknownSymbolsCache, pricesCache } from './utils';
 
 import {
     isExplorerSuccessResponse,
-    ExplorerSuccessResponse,
     StockData,
     isSuccessStockData,
     isStockData

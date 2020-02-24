@@ -5,12 +5,8 @@ import { stocksApiUrl, nockApi, pricesCache, unknownSymbolsCache } from './utils
 
 import {
     isSearchResponse,
-    ExplorerFailResponse,
-    StockData,
-    isKeyExpirationResponse,
     isInvalidRequestResponse,
     isQuoteResponse,
-    ExplorerSuccessResponse,
     isQuoteRequestBody,
     StocksResponse,
     QuoteFailResponse,
@@ -54,7 +50,9 @@ apiRouter.post('/search', async (req, res) => {
    }
 
    const { query } = req.body;
-   const { data } = await axios.get(stocksApiUrl.search(query));
+
+   const { data } = await stocksApiUrl.search(query);
+
    if (isSearchResponse(data)) {
        const { bestMatches } = data;
        const matches: Array<SearchResult> = bestMatches.map(matchItem => {
@@ -99,20 +97,21 @@ apiRouter.post('/quote', async (req, res) => {
        let cached = pricesCache.get(stockSymbol);
        if (typeof cached !== 'undefined')  {
            stocksData[idx] = cached;
+           console.log('cache\n\n');
            return;
        }
 
        cached = unknownSymbolsCache.get(stockSymbol);
        if (typeof cached !== 'undefined') {
+           console.log('cache\n\n');
            stocksData[idx] = cached;
            return;
        }
 
        stockSymbolsToRequestIndexMap.push(idx);
-       requests.push(axios.get(stocksApiUrl.quote(stockSymbol)));
+       requests.push(stocksApiUrl.quote(stockSymbol));
     });
 
-    console.log(stockSymbolsToRequestIndexMap);
 
     let apiResponseArr: Array<any> = [];
     try {

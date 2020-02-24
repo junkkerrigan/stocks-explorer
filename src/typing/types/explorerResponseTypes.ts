@@ -28,10 +28,6 @@ export type ExplorerSuccessResponse = {
     stockSymbolsList: Array<string>,
     stocksData: Array<StockData>,
 };
-export type ExplorerFailResponse = {
-    message: string,
-};
-
 export type QuoteFailResponse = {
     message: string
 };
