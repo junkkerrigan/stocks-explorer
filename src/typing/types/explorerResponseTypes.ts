@@ -28,6 +28,9 @@ export type ExplorerSuccessResponse = {
     stockSymbolsList: Array<string>,
     stocksData: Array<StockData>,
 };
+
+// Actual
+
 export type QuoteFailResponse = {
     message: string
 };

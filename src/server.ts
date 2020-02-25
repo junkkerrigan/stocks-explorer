@@ -1,7 +1,7 @@
 import express from 'express'
 import axios from 'axios';
 import cors from 'cors';
-import { stocksApiUrl, nockApi, pricesCache, unknownSymbolsCache } from './utils';
+import { fetchStocksApi, nockApi, pricesCache, unknownSymbolsCache } from './utils';
 
 import {
     isSearchResponse,
@@ -51,7 +51,7 @@ apiRouter.post('/search', async (req, res) => {
 
    const { query } = req.body;
 
-   const { data } = await stocksApiUrl.search(query);
+   const { data } = await fetchStocksApi.search(query);
 
    if (isSearchResponse(data)) {
        const { bestMatches } = data;
@@ -79,7 +79,7 @@ apiRouter.post('/search', async (req, res) => {
    }
 });
 
-apiRouter.post('/quote', async (req, res) => {
+apiRouter.post('/quotes', async (req, res) => {
     if (!isQuoteRequestBody(req.body)) {
         const explorerResponse: QuoteFailResponse = {
             message: 'Invalid payload: `stockSymbols` field that is array of strings required.'
@@ -109,7 +109,7 @@ apiRouter.post('/quote', async (req, res) => {
        }
 
        stockSymbolsToRequestIndexMap.push(idx);
-       requests.push(stocksApiUrl.quote(stockSymbol));
+       requests.push(fetchStocksApi.quote(stockSymbol));
     });
 
 

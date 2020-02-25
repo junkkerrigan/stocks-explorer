@@ -1,5 +1,5 @@
 import nock from 'nock';
-import { stocksApiUrl } from '../utils';
+import { fetchStocksApi } from '../utils';
 
 import { StocksApiResponse } from '../typing'
 
@@ -27,7 +27,7 @@ const nockApi = () => {
     for (let symbol in nockData) {
         scope
             .persist()
-            .get(stocksApiUrl.quote(symbol, false))
+            .get(fetchStocksApi.quote(symbol, false))
             .reply(200, nockData[symbol]);
     }
 };
