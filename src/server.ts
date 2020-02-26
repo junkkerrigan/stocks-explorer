@@ -9,12 +9,12 @@ import {
     isQuoteResponse,
     isQuoteRequestBody,
     StocksResponse,
-    QuoteFailResponse,
+    QuotesFailResponse,
     isSearchRequestBody,
     SearchSuccessResponse,
     SearchResult,
     SearchFailResponse,
-    QuoteSuccessResponse,
+    QuotesSuccessResponse,
 } from './typing';
 
 // nockApi();
@@ -42,7 +42,7 @@ const companyNames: Record<string, string> = { };
 
 apiRouter.post('/search', async (req, res) => {
    if (!isSearchRequestBody(req.body) || req.body.query === '') {
-       const explorerResponse: QuoteFailResponse = {
+       const explorerResponse: QuotesFailResponse = {
            message: 'Invalid payload: `query` field that is non-empty string required.'
        };
        res.status(400).send(explorerResponse);
@@ -79,9 +79,11 @@ apiRouter.post('/search', async (req, res) => {
    }
 });
 
+// TODO: replace test types
+
 apiRouter.post('/quotes', async (req, res) => {
     if (!isQuoteRequestBody(req.body)) {
-        const explorerResponse: QuoteFailResponse = {
+        const explorerResponse: QuotesFailResponse = {
             message: 'Invalid payload: `stockSymbols` field that is array of strings required.'
         };
         res.status(400).send(explorerResponse);
@@ -101,12 +103,12 @@ apiRouter.post('/quotes', async (req, res) => {
            return;
        }
 
-       cached = unknownSymbolsCache.get(stockSymbol);
-       if (typeof cached !== 'undefined') {
-           console.log('cache\n\n');
-           stocksData[idx] = cached;
-           return;
-       }
+       // cached = unknownSymbolsCache.get(stockSymbol);
+       // if (typeof cached !== 'undefined') {
+       //     console.log('cache\n\n');
+       //     stocksData[idx] = cached;
+       //     return;
+       // }
 
        stockSymbolsToRequestIndexMap.push(idx);
        requests.push(fetchStocksApi.quote(stockSymbol));
@@ -117,7 +119,7 @@ apiRouter.post('/quotes', async (req, res) => {
     try {
         apiResponseArr = await Promise.all(requests);
     } catch {
-        const explorerResponse: QuoteFailResponse = {
+        const explorerResponse: QuotesFailResponse = {
             message: 'Requests to external API failed'
         };
 
@@ -205,7 +207,7 @@ apiRouter.post('/quotes', async (req, res) => {
         }
     });
 
-    const explorerResponse: QuoteSuccessResponse = stocksData;
+    const explorerResponse: QuotesSuccessResponse = stocksData;
     res.status(200).send(explorerResponse);
 });
 

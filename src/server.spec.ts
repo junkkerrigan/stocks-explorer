@@ -20,7 +20,7 @@ describe('Stock Explorer API', () => {
 
     it('should fail when no stockSymbols passed', async () => {
         let res = await request(app)
-            .get('/api/v1/stocks')
+            .get('/api/v1/stocks/quotes')
             .send();
 
         expect(res.status).toEqual(400);
@@ -28,8 +28,8 @@ describe('Stock Explorer API', () => {
 
     it('should return false isMatch when invalid stock symbol passed', async () => {
         let res = await request(app)
-            .get('/api/v1/stocks?stockSymbols=IOIOI')
-            .send();
+            .post('/api/v1/stocks/search')
+            .send({ stockSymbols: [ 'ASDEW' ]});
 
         expect(res.status).toEqual(200);
         expect(isExplorerSuccessResponse(res.body)).toEqual(true);

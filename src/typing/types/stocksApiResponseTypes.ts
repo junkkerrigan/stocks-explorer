@@ -1,22 +1,22 @@
-export type SearchResponse = {
+export type StocksApiSearchResponse = {
     'bestMatches': Array<{
         [key: string]: string
     }>
 }
-export type QuoteResponse = {
+export type StocksApiQuoteResponse = {
     'Global Quote': {
         [key: string]: string
     }
 }
-export type InvalidRequestResponse = {
+export type StocksApiInvalidRequestResponse = {
     'Error Message': string
 }
-export type KeyExpirationResponse = {
+export type StocksApiKeyExpirationResponse = {
     'Note': string
 }
 
 export type StocksApiResponse =
-    | SearchResponse
-    | QuoteResponse
-    | InvalidRequestResponse
-    | KeyExpirationResponse
+    | StocksApiSearchResponse
+    | StocksApiQuoteResponse
+    | StocksApiInvalidRequestResponse
+    | StocksApiKeyExpirationResponse

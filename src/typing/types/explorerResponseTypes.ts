@@ -31,11 +31,13 @@ export type ExplorerSuccessResponse = {
 
 // Actual
 
-export type QuoteFailResponse = {
+export type QuotesResponse = QuotesFailResponse | QuotesSuccessResponse;
+
+export type QuotesFailResponse = {
     message: string
 };
 
-export type QuoteSuccessResponse = Array<StocksResponse>;
+export type QuotesSuccessResponse = Array<StocksResponse>;
 
 export type StocksResponse = StocksSuccessResponse | StocksFailResponse;
 
@@ -58,6 +60,8 @@ export type StocksFailResponse = {
     success: false,
     message: string
 };
+
+export type SearchResponse = SearchFailResponse | StocksSuccessResponse;
 
 export type SearchFailResponse = {
     message: string
