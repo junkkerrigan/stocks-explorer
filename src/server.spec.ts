@@ -1,6 +1,6 @@
 import request from 'supertest';
 import app, { isResponseFromCache } from './server';
-import { unknownSymbolsCache, pricesCache } from './utils';
+import {  pricesCache } from './utils';
 
 import {
     isExplorerSuccessResponse,
@@ -67,7 +67,7 @@ describe('Stock Explorer API', () => {
     describe('caching testing', () => {
         beforeEach(() => {
             isResponseFromCache.clear();
-            pricesCache.reset(); unknownSymbolsCache.reset();
+            pricesCache.reset();
         });
 
         it('should return cached data for correct request', async () => {
@@ -106,12 +106,6 @@ describe('Stock Explorer API', () => {
             await request(app)
                 .get('/api/v1/stocks?stockSymbols=PUTIN')
                 .send();
-
-            console.log(unknownSymbolsCache.values());
-            const isCached = (
-                typeof unknownSymbolsCache.get('PUTIN') !== 'undefined'
-            );
-            expect(isCached).toEqual(true);
 
             let res = await request(app)
                 .get('/api/v1/stocks?stockSymbols=PUTIN')

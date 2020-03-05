@@ -1,7 +1,7 @@
 import express from 'express'
 import axios from 'axios';
 import cors from 'cors';
-import { fetchStocksApi, nockApi, pricesCache, unknownSymbolsCache } from './utils';
+import { fetchStocksApi, nockApi, pricesCache, loadCompaniesNames } from './utils';
 
 import {
     isSearchResponse,
@@ -21,7 +21,6 @@ import {
 
 const app = express();
 app.use(cors());
-// app.use(express.static('./dist'));
 app.use(express.json());
 
 const apiRouter = express.Router();
@@ -38,10 +37,10 @@ export const isResponseFromCache = {
     clear: function() { this._isResponseFromCache = Array<boolean>(); }
 };
 
-const companyNames: Record<string, string> = { };
+const companiesNames = loadCompaniesNames();
 
 apiRouter.post('/search', async (req, res) => {
-   if (!isSearchRequestBody(req.body) || req.body.query === '') {
+    if (!isSearchRequestBody(req.body) || req.body.query === '') {
        const explorerResponse: QuotesFailResponse = {
            message: 'Invalid payload: `query` field that is non-empty string required.'
        };
@@ -51,15 +50,24 @@ apiRouter.post('/search', async (req, res) => {
 
    const { query } = req.body;
 
-   const { data } = await fetchStocksApi.search(query);
+   let data;
+   try {
+       data = await fetchStocksApi.search(query);
+   } catch (e) {
+       const explorerResponse: SearchFailResponse = {
+           message: 'Request to external API failed'
+       };
+       res.status(503).send(explorerResponse);
+       return;
+   }
 
    if (isSearchResponse(data)) {
        const { bestMatches } = data;
-       const matches: Array<SearchResult> = bestMatches.map(matchItem => {
+       const matches = bestMatches.map(matchItem => {
            const values = Array.from(Object.values(matchItem));
            const symbol = values[0];
            const name = values[1];
-           companyNames[symbol] = name;
+           companiesNames[symbol] = name;
 
            return {
                symbol,
@@ -82,6 +90,9 @@ apiRouter.post('/search', async (req, res) => {
 // TODO: replace test types
 
 apiRouter.post('/quotes', async (req, res) => {
+
+    // TODO: handle unescaped chars (actually, handle errors)
+
     if (!isQuoteRequestBody(req.body)) {
         const explorerResponse: QuotesFailResponse = {
             message: 'Invalid payload: `stockSymbols` field that is array of strings required.'
@@ -99,16 +110,8 @@ apiRouter.post('/quotes', async (req, res) => {
        let cached = pricesCache.get(stockSymbol);
        if (typeof cached !== 'undefined')  {
            stocksData[idx] = cached;
-           console.log('cache\n\n');
            return;
        }
-
-       // cached = unknownSymbolsCache.get(stockSymbol);
-       // if (typeof cached !== 'undefined') {
-       //     console.log('cache\n\n');
-       //     stocksData[idx] = cached;
-       //     return;
-       // }
 
        stockSymbolsToRequestIndexMap.push(idx);
        requests.push(fetchStocksApi.quote(stockSymbol));
@@ -128,23 +131,40 @@ apiRouter.post('/quotes', async (req, res) => {
     }
 
     apiResponseArr.forEach((apiResponse, idx) => {
+        const originalIdx = stockSymbolsToRequestIndexMap[idx];
         const { data } = apiResponse;
+
         if (isQuoteResponse(data)) {
             const responseValues = Array.from(Object.values(data['Global Quote']));
 
             let isValidResponse: boolean = true;
             const symbol = responseValues[0];
 
-            if (!(symbol in companyNames)) {
-                const originalIdx = stockSymbolsToRequestIndexMap[idx];
-                stocksData[originalIdx] = {
-                    success: false,
-                    message: 'Unknown stock symbol.'
-                };
-                return;
+            if (!(symbol in companiesNames)) {
+                (async () => {
+                    const { data } = await fetchStocksApi.search(symbol);
+
+                    if (isSearchResponse(data)) {
+                        const { bestMatches } = data;
+                        bestMatches.forEach(matchItem => {
+                            const values = Array.from(Object.values(matchItem));
+                            const symbol = values[0];
+                            const name = values[1];
+                            companiesNames[symbol] = name;
+                        });
+                    }
+                })();
+
+                if (!(symbol in companiesNames)) {
+                    stocksData[originalIdx] = {
+                        success: false,
+                        message: 'Unknown stock symbol.'
+                    };
+                    return;
+                }
             }
 
-            const name = companyNames[symbol];
+            const name = companiesNames[symbol];
             const price = Number(responseValues[4]);
             if (Number.isNaN(price)) {
                 isValidResponse = false;
@@ -182,7 +202,6 @@ apiRouter.post('/quotes', async (req, res) => {
                 };
             }
 
-            const originalIdx = stockSymbolsToRequestIndexMap[idx];
             stocksData[originalIdx] = stocksDataItem;
         } else if (isInvalidRequestResponse(data)) {
             const originalIdx = stockSymbolsToRequestIndexMap[idx];
@@ -191,7 +210,6 @@ apiRouter.post('/quotes', async (req, res) => {
                 message: 'Unknown stock symbol.'
             };
         } else {
-            const originalIdx = stockSymbolsToRequestIndexMap[idx];
             stocksData[originalIdx] = {
                 success: false,
                 message: 'Request to external API failed.'
@@ -202,8 +220,6 @@ apiRouter.post('/quotes', async (req, res) => {
     stockSymbolsToRequestIndexMap.forEach(originalIdx => {
         if (stocksData[originalIdx].success) {
             pricesCache.set(stockSymbols[originalIdx], stocksData[originalIdx]);
-        } else {
-            unknownSymbolsCache.set(stockSymbols[originalIdx], stocksData[originalIdx]);
         }
     });
 
